@@ -213,18 +213,21 @@ cat > ~/douyin-downloader/public/index.html << 'HTMLEOF'
     downloadBtn.onclick = async () => {
       const url = shareUrl.value.trim();
       if (!url) return;
-      downloadBtn.disabled = true; downloadBtn.textContent = '准备下载...';
-      try {
-        const resp = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
-        if (!resp.ok) throw new Error('下载失败');
-        const blob = await resp.blob();
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = (videoTitle.textContent || 'douyin_video').replace(/[<>:"/\\|?*]/g, '_').substring(0, 50) + '.mp4';
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-      } catch(e) { showError(e.message); }
-      finally { downloadBtn.disabled = false; downloadBtn.textContent = '下载视频'; }
+      if (!currentVideoUrl) {
+        // 还没解析，先用下载接口获取
+        downloadBtn.disabled = true; downloadBtn.textContent = '获取链接...';
+        try {
+          const resp = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+          const data = await resp.json();
+          if (!resp.ok || !data.success) throw new Error(data.error || '获取失败');
+          currentVideoUrl = data.data.downloadUrl;
+          if (data.data.title) videoTitle.textContent = data.data.title;
+        } catch(e) { showError(e.message); downloadBtn.disabled = false; downloadBtn.textContent = '下载视频'; return; }
+      }
+      // 直接打开视频链接（浏览器会播放/下载）
+      window.open(currentVideoUrl, '_blank');
+      downloadBtn.disabled = false;
+      downloadBtn.textContent = '下载视频';
     };
 
     function showLoading() { loading.classList.add('active'); }
@@ -240,10 +243,9 @@ HTMLEOF
 
 # 下载后端脚本
 cat > ~/douyin-downloader/server.py << 'PYEOF'
-import re, os, sys, urllib.parse, threading
+import re, os, sys, threading
 import yt_dlp
-from flask import Flask, request, jsonify, send_from_directory, Response
-import requests
+from flask import Flask, request, jsonify, send_from_directory
 
 app = Flask(__name__, static_folder='public', static_url_path='')
 PORT = int(os.environ.get('PORT', 5000))
@@ -307,15 +309,7 @@ def download():
             title = _cache[url].get('title','douyin_video')
             video_url = _cache[url].get('downloadUrl','')
         if not video_url: return jsonify({'error':'无法获取下载地址'}),500
-        headers = {'User-Agent':'Mozilla/5.0','Referer':'https://www.douyin.com/'}
-        vr = requests.get(video_url, headers=headers, stream=True, timeout=60)
-        def gen():
-            for c in vr.iter_content(8192):
-                if c: yield c
-        rh = {'Content-Type':vr.headers.get('content-type','video/mp4'),
-              'Content-Disposition':f'attachment; filename="{urllib.parse.quote(title)}.mp4"'}
-        if vr.headers.get('content-length'): rh['Content-Length'] = vr.headers['content-length']
-        return Response(gen(), headers=rh)
+        return jsonify({'success':True,'data':{'downloadUrl':video_url,'title':title}})
     except Exception as e: return jsonify({'error':str(e)}),500
 
 @app.route('/')
