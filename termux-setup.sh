@@ -247,6 +247,8 @@ import requests
 
 app = Flask(__name__, static_folder='public', static_url_path='')
 PORT = int(os.environ.get('PORT', 5000))
+# 缓存已解析的视频信息，避免重复请求抖音
+_cache = {}
 
 def extract_url(text):
     raw = text.strip()
@@ -271,18 +273,20 @@ def info():
     if not url: return jsonify({'error':'请提供链接'}),400
     try:
         url = extract_url(url)
-        with yt_dlp.YoutubeDL({'quiet':True,'no_warnings':True,'no_color':True}) as ydl:
+        if url in _cache:
+            return jsonify({'success':True,'data':_cache[url]})
+        with yt_dlp.YoutubeDL({'quiet':True,'no_warnings':True,'no_color':True,'update_self':False,'socket_timeout':15}) as ydl:
             info = ydl.extract_info(url, download=False)
         title = re.sub(r'[\x00-\x1f\x7f]','', (info.get('title','抖音视频') or '')).strip()
         uploader = info.get('uploader','')
         author = uploader if uploader and not uploader.isdigit() else info.get('channel','未知作者')
         bf = get_best(info.get('formats',[]))
         video_url = remove_wm(bf.get('url','') if bf else '')
-        return jsonify({'success':True,'data':{
-            'title':title, 'videoUrl':video_url, 'coverUrl':info.get('thumbnail',''),
-            'author':author, 'duration':info.get('duration'),
-            'width':info.get('width'), 'height':info.get('height'),
-        }})
+        _c = {'title':title,'videoUrl':video_url,'coverUrl':info.get('thumbnail',''),
+            'author':author,'duration':info.get('duration'),
+            'width':info.get('width'),'height':info.get('height')}
+        _cache[url] = _c
+        return jsonify({'success':True,'data':_c})
     except Exception as e: return jsonify({'error':str(e)}),500
 
 @app.route('/api/download', methods=['POST'])
@@ -292,11 +296,16 @@ def download():
     if not url: return jsonify({'error':'请提供链接'}),400
     try:
         url = extract_url(url)
-        with yt_dlp.YoutubeDL({'quiet':True,'no_warnings':True,'no_color':True}) as ydl:
-            info = ydl.extract_info(url, download=False)
-        title = re.sub(r'[\x00-\x1f\x7f<>:"/\\|?*]','_', (info.get('title','douyin_video') or ''))[:50]
-        bf = get_best(info.get('formats',[]))
-        video_url = remove_wm(bf.get('url','') if bf else '')
+        if url not in _cache:
+            with yt_dlp.YoutubeDL({'quiet':True,'no_warnings':True,'no_color':True,'update_self':False,'socket_timeout':15}) as ydl:
+                info = ydl.extract_info(url, download=False)
+            title = re.sub(r'[\x00-\x1f\x7f<>:"/\\|?*]','_', (info.get('title','douyin_video') or ''))[:50]
+            bf = get_best(info.get('formats',[]))
+            video_url = remove_wm(bf.get('url','') if bf else '')
+            _cache[url] = {'title':title,'downloadUrl':video_url}
+        else:
+            title = _cache[url].get('title','douyin_video')
+            video_url = _cache[url].get('downloadUrl','')
         if not video_url: return jsonify({'error':'无法获取下载地址'}),500
         headers = {'User-Agent':'Mozilla/5.0','Referer':'https://www.douyin.com/'}
         vr = requests.get(video_url, headers=headers, stream=True, timeout=60)
