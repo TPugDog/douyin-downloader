@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     kotlin("android")
-    id("com.chaquo.python") version "15.0.1"
+    id("com.chaquo.python")
 }
 
 android {
