@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.webkit.*
 import android.widget.Toast
+import java.io.File
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -55,12 +56,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initPython() {
+        // 先把 index.html 从 assets 拷贝到 filesDir，Python 才能访问
+        try {
+            val outFile = File(filesDir, "index.html")
+            if (!outFile.exists()) {
+                assets.open("index.html").use { input ->
+                    outFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            throw RuntimeException("拷贝前端文件失败: ${e.message}", e)
+        }
+
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(this))
         }
         val py = Python.getInstance()
         val server = py.getModule("server")
-        server.callAttr("start_server", SERVER_PORT)
+        server.callAttr("start_server", SERVER_PORT, filesDir.absolutePath)
         // 等待服务器启动
         Thread.sleep(2000)
         pythonReady = true

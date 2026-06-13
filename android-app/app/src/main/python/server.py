@@ -15,8 +15,8 @@ from flask import Flask, request, jsonify, send_from_directory, Response
 
 app = Flask(__name__)
 
-# 资源路径：Android assets 中的 static 目录
-STATIC_DIR = os.path.join(os.path.dirname(__file__), '..', 'assets')
+# 在 Android 上由 MainActivity 传入 filesDir
+STATIC_DIR = None
 
 
 def extract_url(text):
@@ -141,19 +141,21 @@ def api_download():
 
 @app.route('/')
 def index():
-    idx_path = os.path.join(STATIC_DIR, 'index.html')
-    if os.path.exists(idx_path):
-        with open(idx_path, 'r', encoding='utf-8') as f:
-            return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+    if STATIC_DIR:
+        idx_path = os.path.join(STATIC_DIR, 'index.html')
+        if os.path.exists(idx_path):
+            with open(idx_path, 'r', encoding='utf-8') as f:
+                return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
     return 'Frontend not found', 404
 
 
 _app_thread = None
 
 
-def start_server(port):
+def start_server(port, files_dir=None):
     """启动 Flask 服务器（在后台线程中运行），由 Chaquopy 调用"""
-    global _app_thread
+    global _app_thread, STATIC_DIR
+    STATIC_DIR = files_dir
     if _app_thread and _app_thread.is_alive():
         return True
 
