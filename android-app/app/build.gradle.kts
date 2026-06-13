@@ -1,8 +1,9 @@
 plugins {
     id("com.android.application")
     kotlin("android")
-    id("com.chaquo.python")
 }
+
+apply(plugin = "com.chaquo.python")
 
 android {
     namespace = "com.douyin.downloader"
