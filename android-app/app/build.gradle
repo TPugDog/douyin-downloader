@@ -1,0 +1,51 @@
+apply plugin: "com.android.application"
+apply plugin: "kotlin-android"
+apply plugin: "com.chaquo.python"
+
+android {
+    namespace "com.douyin.downloader"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.douyin.downloader"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        python {
+            buildPython "python3"
+            pip {
+                install "yt-dlp"
+                install "flask"
+                install "requests"
+            }
+        }
+
+        ndk {
+            abiFilters += ["arm64-v8a", "x86_64"]
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "androidx.core:core-ktx:1.12.0"
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
+}

@@ -30,16 +30,25 @@ jobs:
           sdkmanager "platforms;android-34" \
                      "build-tools;34.0.0" \
                      "ndk;25.2.9519653"
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.5"
 
+      - name: Generate Gradle Wrapper
+        working-directory: ./android-app
+        run: gradle wrapper --gradle-version 8.5
+
+      - name: Clean Gradle cache (avoid stale plugin state)
+        working-directory: ./android-app
+        run: |
+          rm -rf ~/.gradle/caches/modules-2/files-2.1/com.chaquo.python
+          ./gradlew --stop || true
+
       - name: Build APK
         working-directory: ./android-app
-        run: gradle assembleDebug
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
