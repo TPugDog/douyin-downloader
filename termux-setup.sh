@@ -15,16 +15,21 @@ echo ""
 echo "[1/5] 更新包管理器..."
 pkg update -y && pkg upgrade -y
 
-# 2. 安装 Python
-echo "[2/5] 安装 Python..."
+# 2. 请求存储权限
+echo "[2/5] 请求存储权限..."
+termux-setup-storage 2>/dev/null || true
+sleep 1
+
+# 3. 安装 Python
+echo "[3/5] 安装 Python..."
 pkg install -y python
 
 # 3. 安装 pip 依赖
-echo "[3/5] 安装 Python 依赖 (yt-dlp, flask)..."
+echo "[3/6] 安装 Python 依赖 (yt-dlp, flask)..."
 pip install yt-dlp flask requests
 
 # 4. 创建项目目录
-echo "[4/5] 创建项目文件..."
+echo "[4/6] 创建项目文件..."
 mkdir -p ~/douyin-downloader/public
 
 # 下载前端页面
@@ -213,21 +218,17 @@ cat > ~/douyin-downloader/public/index.html << 'HTMLEOF'
     downloadBtn.onclick = async () => {
       const url = shareUrl.value.trim();
       if (!url) return;
-      if (!currentVideoUrl) {
-        // 还没解析，先用下载接口获取
-        downloadBtn.disabled = true; downloadBtn.textContent = '获取链接...';
-        try {
-          const resp = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
-          const data = await resp.json();
-          if (!resp.ok || !data.success) throw new Error(data.error || '获取失败');
-          currentVideoUrl = data.data.downloadUrl;
-          if (data.data.title) videoTitle.textContent = data.data.title;
-        } catch(e) { showError(e.message); downloadBtn.disabled = false; downloadBtn.textContent = '下载视频'; return; }
-      }
-      // 直接打开视频链接（浏览器会播放/下载）
-      window.open(currentVideoUrl, '_blank');
-      downloadBtn.disabled = false;
-      downloadBtn.textContent = '下载视频';
+      downloadBtn.disabled = true; downloadBtn.textContent = '下载中...';
+      try {
+        const resp = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) throw new Error(data.error || '下载失败');
+        showError('已保存到: ' + data.data.path);
+        document.querySelector('.error-msg').style.color = '#34d399';
+        document.querySelector('.error-msg').style.borderColor = 'rgba(52,211,153,0.3)';
+        document.querySelector('.error-msg').style.background = 'rgba(52,211,153,0.1)';
+      } catch(e) { showError(e.message); }
+      finally { downloadBtn.disabled = false; downloadBtn.textContent = '下载视频'; }
     };
 
     function showLoading() { loading.classList.add('active'); }
@@ -243,9 +244,10 @@ HTMLEOF
 
 # 下载后端脚本
 cat > ~/douyin-downloader/server.py << 'PYEOF'
-import re, os, sys, threading
+import re, os, sys, threading, time
 import yt_dlp
 from flask import Flask, request, jsonify, send_from_directory
+import requests
 
 app = Flask(__name__, static_folder='public', static_url_path='')
 PORT = int(os.environ.get('PORT', 5000))
@@ -309,7 +311,19 @@ def download():
             title = _cache[url].get('title','douyin_video')
             video_url = _cache[url].get('downloadUrl','')
         if not video_url: return jsonify({'error':'无法获取下载地址'}),500
-        return jsonify({'success':True,'data':{'downloadUrl':video_url,'title':title}})
+        # 直接下载到手机存储
+        save_dir = '/sdcard/Download'
+        if not os.path.exists(save_dir):
+            save_dir = os.path.expanduser('~')
+        safe_title = re.sub(r'[<>:"/\\|?*]','_', title)[:30] or 'douyin'
+        save_path = os.path.join(save_dir, f'{safe_title}.mp4')
+        headers = {'User-Agent':'Mozilla/5.0','Referer':'https://www.douyin.com/'}
+        r = requests.get(video_url, headers=headers, stream=True, timeout=120)
+        r.raise_for_status()
+        with open(save_path, 'wb') as f:
+            for chunk in r.iter_content(8192):
+                if chunk: f.write(chunk)
+        return jsonify({'success':True,'data':{'path':save_path,'title':title}})
     except Exception as e: return jsonify({'error':str(e)}),500
 
 @app.route('/')
@@ -321,7 +335,7 @@ if __name__ == '__main__':
 PYEOF
 
 # 5. 创建启动脚本
-echo "[5/5] 创建启动脚本..."
+echo "[5/6] 创建启动脚本..."
 
 cat > ~/douyin-downloader/start.sh << 'STARTEOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -348,6 +362,8 @@ python server.py
 STARTEOF
 
 chmod +x ~/douyin-downloader/start.sh
+
+echo "[6/6] 安装完成!"
 
 echo ""
 echo "=============================="
