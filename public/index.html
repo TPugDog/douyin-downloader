@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>抖音视频下载器</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --card: #1a1a23;
+      --border: #2a2a3a;
+      --text: #e8e8f0;
+      --muted: #8888a0;
+      --accent: #ff2e5b;
+      --accent-hover: #ff4777;
+      --success: #34d399;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #ff2e5b, #ff6b3d);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .input-group input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .input-group input:focus {
+      border-color: var(--accent);
+    }
+
+    .input-group input::placeholder {
+      color: #555;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover { background: var(--accent-hover); }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-download {
+      background: var(--success);
+      color: #0f0f13;
+    }
+    .btn-download:hover { background: #6ee7b7; }
+
+    .tips {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+      margin-top: 4px;
+    }
+    .tips span {
+      background: var(--border);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    /* 加载动画 */
+    .loading {
+      display: none;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .loading.active { display: block; }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading p { color: var(--muted); font-size: 14px; }
+
+    /* 结果 */
+    .result {
+      display: none;
+      margin-top: 20px;
+    }
+    .result.active { display: block; }
+
+    .result-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .result-video {
+      width: 100%;
+      aspect-ratio: 9 / 16;
+      max-height: 400px;
+      object-fit: contain;
+      background: #000;
+      display: block;
+      cursor: pointer;
+    }
+
+    .result-info {
+      padding: 16px;
+    }
+
+    .result-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .result-author {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .result-actions .btn { flex: 1; justify-content: center; font-size: 14px; padding: 12px; }
+
+    .error-msg {
+      display: none;
+      background: rgba(255, 46, 91, 0.1);
+      border: 1px solid rgba(255, 46, 91, 0.3);
+      color: #ff6b8a;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-top: 16px;
+    }
+    .error-msg.active { display: block; }
+
+    .examples {
+      margin-top: 20px;
+      padding: 16px;
+      text-align: center;
+    }
+    .examples p {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .example-link {
+      color: #8888bb;
+      font-size: 13px;
+      cursor: pointer;
+      transition: color 0.2s;
+      display: inline-block;
+      padding: 4px 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin: 4px;
+    }
+    .example-link:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 500px) {
+      .card { padding: 20px; }
+      .input-group { flex-direction: column; }
+      .result-actions { flex-direction: column; }
+      .header h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>抖音视频下载器</h1>
+      <p>粘贴分享链接，一键下载无水印视频</p>
+    </div>
+
+    <div class="card">
+      <div class="input-group">
+        <input
+          type="text"
+          id="shareUrl"
+          placeholder="直接粘贴分享链接或完整分享文案，自动识别"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button class="btn" id="getBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          解析
+        </button>
+      </div>
+
+      <div class="tips">
+        在抖音点击分享 → 复制链接，直接粘贴整段文字即可
+      </div>
+
+      <!-- 加载 -->
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>正在解析视频...</p>
+      </div>
+
+      <!-- 错误 -->
+      <div class="error-msg" id="errorMsg"></div>
+
+      <!-- 结果 -->
+      <div class="result" id="result">
+        <div class="result-card">
+          <video class="result-video" id="videoPreview" controls playsinline></video>
+          <div class="result-info">
+            <div class="result-title" id="videoTitle">视频标题</div>
+            <div class="result-author" id="videoAuthor">作者：未知</div>
+            <div class="result-actions">
+              <button class="btn btn-download" id="downloadBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                下载视频
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 使用说明 -->
+    <div class="examples" id="examples">
+      <p>使用步骤：</p>
+      <span class="example-link">1. 打开抖音 App</span>
+      <span class="example-link">2. 点分享 → 复制链接</span>
+      <span class="example-link">3. 粘贴到上方输入框</span>
+      <span class="example-link">4. 点击解析即可下载</span>
+    </div>
+
+    <div class="footer">
+      仅用于学习交流，请遵守相关法律法规
+    </div>
+  </div>
+
+  <script>
+    const shareUrlInput = document.getElementById('shareUrl');
+    const getBtn = document.getElementById('getBtn');
+    const loading = document.getElementById('loading');
+    const errorMsg = document.getElementById('errorMsg');
+    const result = document.getElementById('result');
+    const videoPreview = document.getElementById('videoPreview');
+    const videoTitle = document.getElementById('videoTitle');
+    const videoAuthor = document.getElementById('videoAuthor');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let currentVideoUrl = '';
+
+    // 获取/解析视频
+    getBtn.addEventListener('click', fetchVideo);
+    shareUrlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') fetchVideo();
+    });
+
+    async function fetchVideo() {
+      const url = shareUrlInput.value.trim();
+      if (!url) {
+        showError('请先粘贴抖音分享链接');
+        return;
+      }
+
+      // 基础验证
+      if (!url.includes('douyin.com')) {
+        showError('请粘贴有效的抖音分享链接（需包含 douyin.com）');
+        return;
+      }
+
+      hideError();
+      hideResult();
+      showLoading();
+
+      try {
+        const resp = await fetch('/api/info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+
+        const data = await resp.json();
+
+        if (!resp.ok || !data.success) {
+          throw new Error(data.error || '解析失败');
+        }
+
+        const info = data.data;
+        currentVideoUrl = info.videoUrl;
+        videoTitle.textContent = info.title || '抖音视频';
+        videoAuthor.textContent = '作者：' + (info.author || '未知');
+        videoPreview.src = info.videoUrl + '#t=0.1';
+        showResult();
+      } catch (err) {
+        showError(err.message || '解析失败，请检查链接或稍后重试');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // 下载视频
+    downloadBtn.addEventListener('click', async () => {
+      const url = shareUrlInput.value.trim();
+      if (!url) return;
+
+      downloadBtn.disabled = true;
+      downloadBtn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin:0"></span> 准备下载...';
+
+      try {
+        // 方式 1：通过后端代理流式下载
+        const resp = await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.error || '下载失败');
+        }
+
+        // 获取视频 blob 并触发下载
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = (videoTitle.textContent || 'douyin_video').replace(/[<>:"/\\|?*]/g, '_').substring(0, 50) + '.mp4';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        downloadBtn.disabled = false;
+        downloadBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                下载视频`;
+      }
+    });
+
+    function showLoading() { loading.classList.add('active'); }
+    function hideLoading() { loading.classList.remove('active'); }
+    function showResult() { result.classList.add('active'); }
+    function hideResult() { result.classList.remove('active'); }
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add('active');
+    }
+    function hideError() {
+      errorMsg.classList.remove('active');
+    }
+  </script>
+</body>
+</html>
