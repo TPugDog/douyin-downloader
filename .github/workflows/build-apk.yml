@@ -2,8 +2,11 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -26,16 +29,14 @@ jobs:
         run: |
           sdkmanager "platforms;android-34" \
                      "build-tools;34.0.0" \
-                     "ndk;25.2.9519653" \
-                     "cmake;3.22.1"
+                     "ndk;25.2.9519653"
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
 
       - name: Build APK
         working-directory: ./android-app
-        run: gradle assembleDebug
+        run: |
+          chmod +x gradlew 2>/dev/null || true
+          gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
